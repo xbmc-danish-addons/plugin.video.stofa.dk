@@ -1,2 +1,5 @@
+[B]Version 0.0.2[/B]
+- Added login support
+
 [B]Version 0.0.1[/B]
 - Proof of concept

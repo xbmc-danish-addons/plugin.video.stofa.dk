@@ -20,7 +20,9 @@
 import os
 import sys
 import urlparse
+import urllib
 import urllib2
+import cookielib
 import re
 
 import buggalo
@@ -30,14 +32,61 @@ import xbmcaddon
 import xbmcgui
 import xbmcplugin
 
+class LoginFailedException(Exception):
+    pass
+
+class AccessBlockedException(Exception):
+    pass
+
 class StofaWebTv(object):
     LIVE_TV_URL = 'https://webtv.stofa.dk/live_tv.php'
     STREAM_URL = 'https://webtv.stofa.dk/cmd.php?cmd=get%5Fserver&sid='
+    LOGIN_URL = 'https://webtv.stofa.dk/ajax_ms_login.php'
+
+    COOKIE_JAR = cookielib.LWPCookieJar()
+
+    def __init__(self):
+        self.cookieFile = os.path.join(CACHE_PATH, 'cookies.lwp')
+        if os.path.isfile(self.cookieFile):
+            self.COOKIE_JAR.load(self.cookieFile, ignore_discard=True, ignore_expires=True)
+        urllib2.install_opener(urllib2.build_opener(urllib2.HTTPCookieProcessor(self.COOKIE_JAR)))
+
+
+    def handleLogin(self, html):
+        if html.find('notloggedin') >= 0:
+            print 'logging in'
+
+            m = re.search('name="(msuser_[^"]+")', html)
+            userParam = m.group(1)
+            m = re.search('name="(mspass_[^"]+")', html)
+            passParam = m.group(1)
+
+            data = urllib.urlencode({userParam : ADDON.getSetting('username'), passParam : ADDON.getSetting('password')})
+            print data
+
+            try:
+                r = urllib2.Request(StofaWebTv.LOGIN_URL)
+                r.add_data(data)
+                u = urllib2.urlopen(r)
+                u.read()
+                u.close()
+
+                # save cookies
+                self.COOKIE_JAR.save(self.cookieFile, ignore_discard=True, ignore_expires=True)
+
+            except urllib2.HTTPError, ex:
+                if ex.code == 503:
+                    raise AccessBlockedException()
+                else:
+                    raise LoginFailedException()
+
 
     def listTVChannels(self):
         u = urllib2.urlopen(StofaWebTv.LIVE_TV_URL)
         html = u.read()
         u.close()
+
+        self.handleLogin(html)
 
         for m in re.finditer('channel_change_live_tv\(([0-9]+),.*?<img src="([^"]+)".*?<span>([^<]+)<', html, re.DOTALL):
             id = m.group(1)
@@ -63,6 +112,14 @@ class StofaWebTv(object):
         item = xbmcgui.ListItem(path = url)
         xbmcplugin.setResolvedUrl(HANDLE, True, item)
 
+    def loginFailed(self):
+        heading = buggalo.getRandomHeading()
+        xbmcgui.Dialog().ok(heading, ADDON.getLocalizedString(200), ADDON.getLocalizedString(201))
+
+    def accessBlocked(self):
+        heading = buggalo.getRandomHeading()
+        xbmcgui.Dialog().ok(heading, ADDON.getLocalizedString(210))
+
 if __name__ == '__main__':
     ADDON = xbmcaddon.Addon()
     PATH = sys.argv[0]
@@ -82,5 +139,9 @@ if __name__ == '__main__':
         else:
             stv.listTVChannels()
 
+    except LoginFailedException:
+        stv.loginFailed()
+    except AccessBlockedException:
+        stv.accessBlocked()
     except Exception:
         buggalo.onExceptionRaised()
