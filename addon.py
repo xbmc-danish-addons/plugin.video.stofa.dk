@@ -24,6 +24,7 @@ import urllib
 import urllib2
 import cookielib
 import re
+from htmlentitydefs import name2codepoint
 
 import buggalo
 
@@ -56,9 +57,9 @@ class StofaWebTv(object):
         if html.find('notloggedin') >= 0:
             print 'logging in'
 
-            m = re.search('name="(msuser_[^"]+")', html)
+            m = re.search('name="(msuser_[^"]+)"', html)
             userParam = m.group(1)
-            m = re.search('name="(mspass_[^"]+")', html)
+            m = re.search('name="(mspass_[^"]+)"', html)
             passParam = m.group(1)
 
             data = urllib.urlencode({userParam : ADDON.getSetting('username'), passParam : ADDON.getSetting('password')})
@@ -88,13 +89,19 @@ class StofaWebTv(object):
 
         self.handleLogin(html)
 
-        for m in re.finditer('channel_change_live_tv\(([0-9]+),.*?<img src="([^"]+)".*?<span>([^<]+)<', html, re.DOTALL):
+        for m in re.finditer('channel_change_live_tv\(([0-9]+),.*?<img src="([^"]+)".*?<span>([^<]+)<.*?class="miniEPGData">([^<]+)<', html, re.DOTALL):
             id = m.group(1)
-            image = m.group(2)
-            title = m.group(3)
+            image = m.group(2).replace('30x30', '60x60')
+            title = self.decodeHtmlEntities(m.group(3))
+            description = self.decodeHtmlEntities(m.group(4))
 
-            item = xbmcgui.ListItem(title, iconImage = image)
+
+            item = xbmcgui.ListItem(title, iconImage = image, thumbnailImage = image)
             item.setProperty('IsPlayable', 'true')
+            item.setInfo('video', {
+                'title' : title,
+                'plot' : description
+            })
             url = PATH + '?channel=' + id
             xbmcplugin.addDirectoryItem(HANDLE, url, item)
 
@@ -119,6 +126,41 @@ class StofaWebTv(object):
     def accessBlocked(self):
         heading = buggalo.getRandomHeading()
         xbmcgui.Dialog().ok(heading, ADDON.getLocalizedString(210))
+
+    def decodeHtmlEntities(self, string):
+        """Decodes the HTML entities found in the string and returns the modified string.
+
+        Both decimal (&#000;) and hexadecimal (&x00;) are supported as well as HTML entities,
+        such as &aelig;
+
+        Keyword arguments:
+        string -- the string with HTML entities
+
+        """
+        if type(string) not in [str, unicode]:
+            return string
+
+        def substituteEntity(match):
+            ent = match.group(3)
+            if match.group(1) == "#":
+                # decoding by number
+                if match.group(2) == '':
+                    # number is in decimal
+                    return unichr(int(ent))
+            elif match.group(2) == 'x':
+                # number is in hex
+                return unichr(int('0x'+ent, 16))
+            else:
+                # they were using a name
+                cp = name2codepoint.get(ent)
+                if cp:
+                    return unichr(cp)
+                else:
+                    return match.group()
+
+        entity_re = re.compile(r'&(#?)(x?)(\w+);')
+        return entity_re.subn(substituteEntity, string)[0]
+
 
 if __name__ == '__main__':
     ADDON = xbmcaddon.Addon()

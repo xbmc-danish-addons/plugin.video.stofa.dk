@@ -1,3 +1,9 @@
+[B]Version 0.0.4 - 2012-06-08[/B]
+- Fixed login and playback
+
+[B]Version 0.0.3 - 2012-06-07[/B]
+- Fixed settings
+
 [B]Version 0.0.2[/B]
 - Added login support
 
