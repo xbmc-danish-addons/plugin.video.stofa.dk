@@ -1,3 +1,6 @@
+[B]Version 0.0.5 - 2012-06-13[/B]
+- Website changes
+
 [B]Version 0.0.4 - 2012-06-08[/B]
 - Fixed login and playback
 

@@ -25,7 +25,7 @@ import urllib2
 import cookielib
 import re
 from htmlentitydefs import name2codepoint
-
+import simplejson
 import buggalo
 
 import xbmc
@@ -36,13 +36,11 @@ import xbmcplugin
 class LoginFailedException(Exception):
     pass
 
-class AccessBlockedException(Exception):
-    pass
-
 class StofaWebTv(object):
-    LIVE_TV_URL = 'https://webtv.stofa.dk/live_tv.php'
-    STREAM_URL = 'https://webtv.stofa.dk/cmd.php?cmd=get%5Fserver&sid='
-    LOGIN_URL = 'https://webtv.stofa.dk/ajax_ms_login.php'
+    LIVE_TV_URL = 'http://webtv.stofa.dk/'
+    STREAM_URL = 'http://webtv.stofa.dk/cmd.php?cmd=get%5Fserver&sid='
+    LOGIN_URL = 'http://webtv.stofa.dk/includes/ajax/login.php?cmd=login_web&'
+    CHANNELS_URL = 'http://webtv.stofa.dk/includes/ajax/live.php?cmd=get_sids&inclcn=true'
 
     COOKIE_JAR = cookielib.LWPCookieJar()
 
@@ -54,8 +52,10 @@ class StofaWebTv(object):
 
 
     def handleLogin(self, html):
-        if html.find('notloggedin') >= 0:
-            print 'logging in'
+        if html.find('<div id="topLogin">Login</div>') >= 0:
+            u = urllib2.urlopen('http://webtv.stofa.dk/includes/popup/login.php')
+            html = u.read()
+            u.close()
 
             m = re.search('name="(msuser_[^"]+)"', html)
             userParam = m.group(1)
@@ -63,23 +63,18 @@ class StofaWebTv(object):
             passParam = m.group(1)
 
             data = urllib.urlencode({userParam : ADDON.getSetting('username'), passParam : ADDON.getSetting('password')})
-            print data
 
-            try:
-                r = urllib2.Request(StofaWebTv.LOGIN_URL)
-                r.add_data(data)
-                u = urllib2.urlopen(r)
-                u.read()
-                u.close()
+            url = StofaWebTv.LOGIN_URL + data
+            print url
+            u = urllib2.urlopen(url)
+            json = simplejson.loads(u.read())
+            u.close()
 
+            if json['status'] == 'ok':
                 # save cookies
                 self.COOKIE_JAR.save(self.cookieFile, ignore_discard=True, ignore_expires=True)
-
-            except urllib2.HTTPError, ex:
-                if ex.code == 503:
-                    raise AccessBlockedException()
-                else:
-                    raise LoginFailedException()
+            else:
+                raise LoginFailedException()
 
 
     def listTVChannels(self):
@@ -89,20 +84,23 @@ class StofaWebTv(object):
 
         self.handleLogin(html)
 
-        for m in re.finditer('channel_change_live_tv\(([0-9]+),.*?<img src="([^"]+)".*?<span>([^<]+)<.*?class="miniEPGData">([^<]+)<', html, re.DOTALL):
-            id = m.group(1)
-            image = m.group(2).replace('30x30', '60x60')
-            title = self.decodeHtmlEntities(m.group(3))
-            description = self.decodeHtmlEntities(m.group(4))
+        u = urllib2.urlopen(StofaWebTv.CHANNELS_URL)
+        json = simplejson.loads(u.read())
+        u.close()
+
+        channels = dict()
+        for sid in json['sids']:
+            lcn = json['sids'][sid]['lcn']
+            channels[int(lcn)] = sid
 
 
-            item = xbmcgui.ListItem(title, iconImage = image, thumbnailImage = image)
+        for lcn in sorted(channels.keys()):
+            sid = channels[lcn]
+            name = json['sids'][sid]['name']
+
+            item = xbmcgui.ListItem(name)
             item.setProperty('IsPlayable', 'true')
-            item.setInfo('video', {
-                'title' : title,
-                'plot' : description
-            })
-            url = PATH + '?channel=' + id
+            url = PATH + '?channel=' + sid
             xbmcplugin.addDirectoryItem(HANDLE, url, item)
 
         xbmcplugin.endOfDirectory(HANDLE, True)
@@ -122,10 +120,6 @@ class StofaWebTv(object):
     def loginFailed(self):
         heading = buggalo.getRandomHeading()
         xbmcgui.Dialog().ok(heading, ADDON.getLocalizedString(200), ADDON.getLocalizedString(201))
-
-    def accessBlocked(self):
-        heading = buggalo.getRandomHeading()
-        xbmcgui.Dialog().ok(heading, ADDON.getLocalizedString(210))
 
     def decodeHtmlEntities(self, string):
         """Decodes the HTML entities found in the string and returns the modified string.
@@ -183,7 +177,5 @@ if __name__ == '__main__':
 
     except LoginFailedException:
         stv.loginFailed()
-    except AccessBlockedException:
-        stv.accessBlocked()
     except Exception:
         buggalo.onExceptionRaised()
