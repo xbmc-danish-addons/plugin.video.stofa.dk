@@ -65,7 +65,6 @@ class StofaWebTv(object):
             data = urllib.urlencode({userParam : ADDON.getSetting('username'), passParam : ADDON.getSetting('password')})
 
             url = StofaWebTv.LOGIN_URL + data
-            print url
             u = urllib2.urlopen(url)
             json = simplejson.loads(u.read())
             u.close()
@@ -112,7 +111,6 @@ class StofaWebTv(object):
 
         params = urlparse.parse_qs(params_string)
         url = params['servers'][0] + params['filename'][0] + ' live=1 swfUrl=http://webtv.stofa.dk/videoplayer.swf swfVfy=true'
-        print url
 
         item = xbmcgui.ListItem(path = url)
         xbmcplugin.setResolvedUrl(HANDLE, True, item)

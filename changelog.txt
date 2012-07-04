@@ -1,3 +1,6 @@
+[B]Version 1.0.0 - 2012-07-xx[/B]
+- Updated graphics for first public release
+
 [B]Version 0.0.5 - 2012-06-13[/B]
 - Website changes
 
