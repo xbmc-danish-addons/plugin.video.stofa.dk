@@ -97,8 +97,9 @@ class StofaWebTv(object):
             sid = channels[lcn]
             name = json['sids'][sid]['name']
 
-            item = xbmcgui.ListItem(name)
+            item = xbmcgui.ListItem(name, iconImage=ICON, thumbnailImage=ICON)
             item.setProperty('IsPlayable', 'true')
+            item.setProperty('Fanart_Image', FANART)
             url = PATH + '?channel=' + sid
             xbmcplugin.addDirectoryItem(HANDLE, url, item)
 
@@ -161,6 +162,7 @@ if __name__ == '__main__':
     PARAMS = urlparse.parse_qs(sys.argv[2][1:])
 
     ICON = os.path.join(ADDON.getAddonInfo('path'), 'icon.png')
+    FANART = os.path.join(ADDON.getAddonInfo('path'), 'fanart.jpg')
 
     CACHE_PATH = xbmc.translatePath(ADDON.getAddonInfo("Profile"))
     if not os.path.exists(CACHE_PATH):
