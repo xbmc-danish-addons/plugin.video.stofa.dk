@@ -168,6 +168,7 @@ if __name__ == '__main__':
     if not os.path.exists(CACHE_PATH):
         os.makedirs(CACHE_PATH)
 
+    buggalo.SUBMIT_URL = 'http://tommy.winther.nu/exception/submit.php'
     stv = StofaWebTv()
     try:
         if PARAMS.has_key('channel'):
