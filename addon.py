@@ -38,7 +38,7 @@ class LoginFailedException(Exception):
 
 class StofaWebTv(object):
     LIVE_TV_URL = 'http://webtv.stofa.dk/'
-    STREAM_URL = 'http://webtv.stofa.dk/cmd.php?cmd=get%5Fserver&sid='
+    STREAM_URL = 'http://webtv.stofa.dk/cmd.php?cmd=get_stream_url&sid=%s&datatype=json&segsupport=true&manufacturer=webtv&model=web&uid='
     LOGIN_URL = 'http://webtv.stofa.dk/includes/ajax/login.php?cmd=login_web&'
     CHANNELS_URL = 'http://webtv.stofa.dk/includes/ajax/live.php?cmd=get_sids&inclcn=true'
 
@@ -106,12 +106,29 @@ class StofaWebTv(object):
         xbmcplugin.endOfDirectory(HANDLE, True)
 
     def playLiveTVChannel(self, channelId):
-        u = urllib2.urlopen(StofaWebTv.STREAM_URL + channelId)
-        params_string = u.read()
+        u = urllib2.urlopen(StofaWebTv.STREAM_URL % channelId)
+        json_string = u.read()
         u.close()
 
-        params = urlparse.parse_qs(params_string)
-        url = params['servers'][0] + params['filename'][0] + ' live=1 swfUrl=http://webtv.stofa.dk/videoplayer.swf swfVfy=true'
+        json = simplejson.loads(json_string)
+        try:
+            # check for errors from server
+            self.showError(json['streams']['0']['info'])
+            xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+            return
+        except KeyError:
+            pass
+
+        url = json['streams']['stream']
+
+        # XBMC doesn't support m3u8 stream selection yet, so let's play the best quality one.
+        u = urllib2.urlopen(url)
+        m3u8 = u.read()
+        u.close()
+
+        stream = m3u8.splitlines()[-1]
+        idx = url.rfind('/') + 1
+        url = url[0:idx] + stream
 
         item = xbmcgui.ListItem(path = url)
         xbmcplugin.setResolvedUrl(HANDLE, True, item)
@@ -119,6 +136,10 @@ class StofaWebTv(object):
     def loginFailed(self):
         heading = buggalo.getRandomHeading()
         xbmcgui.Dialog().ok(heading, ADDON.getLocalizedString(200), ADDON.getLocalizedString(201))
+
+    def showError(self, message):
+        heading = buggalo.getRandomHeading()
+        xbmcgui.Dialog().ok(heading, ADDON.getLocalizedString(202), ADDON.getLocalizedString(203), message)
 
     def decodeHtmlEntities(self, string):
         """Decodes the HTML entities found in the string and returns the modified string.
