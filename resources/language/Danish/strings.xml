@@ -3,6 +3,7 @@
     <string id="100">Login</string>
     <string id="101">Brugernavn</string>
     <string id="102">Adgangskode</string>
+    <string id="103">Skjul DRM beskyttede kanaler</string>
 
     <string id="200">Dit login er ugyldigt.</string>
     <string id="201">Kontroller opsætningen og prøv igen.</string>

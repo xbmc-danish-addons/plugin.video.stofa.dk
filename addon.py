@@ -1,5 +1,5 @@
 #
-#      Copyright (C) 2012 Tommy Winther
+#      Copyright (C) 2013 Tommy Winther
 #      http://tommy.winther.nu
 #
 #  This Program is free software; you can redistribute it and/or modify
@@ -33,8 +33,10 @@ import xbmcaddon
 import xbmcgui
 import xbmcplugin
 
+
 class LoginFailedException(Exception):
     pass
+
 
 class StofaWebTv(object):
     LIVE_TV_URL = 'http://webtv.stofa.dk/'
@@ -49,7 +51,6 @@ class StofaWebTv(object):
         if os.path.isfile(self.cookieFile):
             self.COOKIE_JAR.load(self.cookieFile, ignore_discard=True, ignore_expires=True)
         urllib2.install_opener(urllib2.build_opener(urllib2.HTTPCookieProcessor(self.COOKIE_JAR)))
-
 
     def handleLogin(self, html):
         if html.find('<div id="topLogin">Login</div>') >= 0:
@@ -75,7 +76,6 @@ class StofaWebTv(object):
             else:
                 raise LoginFailedException()
 
-
     def listTVChannels(self):
         u = urllib2.urlopen(StofaWebTv.LIVE_TV_URL)
         html = u.read()
@@ -87,15 +87,19 @@ class StofaWebTv(object):
         json = simplejson.loads(u.read())
         u.close()
 
+        print json
+
         channels = dict()
         for sid in json['sids']:
             lcn = json['sids'][sid]['lcn']
             channels[int(lcn)] = sid
 
-
         for lcn in sorted(channels.keys()):
             sid = channels[lcn]
             name = json['sids'][sid]['name']
+
+            if ADDON.getSetting('hide.drm.channels') == 'true' and json['sids'][sid]['DRM_live'] == '1':
+                continue
 
             item = xbmcgui.ListItem(name, iconImage=ICON, thumbnailImage=ICON)
             item.setProperty('IsPlayable', 'true')
@@ -113,7 +117,8 @@ class StofaWebTv(object):
         json = simplejson.loads(json_string)
         try:
             # check for errors from server
-            self.showError(json['streams']['0']['info'])
+            print json
+            self.showError(json['streams'][0]['info'])
             xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
             return
         except KeyError:
