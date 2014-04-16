@@ -1,5 +1,5 @@
 #
-#      Copyright (C) 2013 Tommy Winther
+#      Copyright (C) 2014 Tommy Winther
 #      http://tommy.winther.nu
 #
 #  This Program is free software; you can redistribute it and/or modify
@@ -32,10 +32,6 @@ import xbmc
 import xbmcaddon
 import xbmcgui
 import xbmcplugin
-
-
-class LoginFailedException(Exception):
-    pass
 
 
 class StofaWebTv(object):
@@ -74,7 +70,7 @@ class StofaWebTv(object):
                 # save cookies
                 self.COOKIE_JAR.save(self.cookieFile, ignore_discard=True, ignore_expires=True)
             else:
-                raise LoginFailedException()
+                self.loginFailed()
 
     def listTVChannels(self):
         u = urllib2.urlopen(StofaWebTv.LIVE_TV_URL)
@@ -87,24 +83,16 @@ class StofaWebTv(object):
         json = simplejson.loads(u.read())
         u.close()
 
-        print json
-
-        channels = dict()
         for sid in json['sids']:
-            lcn = json['sids'][sid]['lcn']
-            channels[int(lcn)] = sid
+            name = sid['name']
 
-        for lcn in sorted(channels.keys()):
-            sid = channels[lcn]
-            name = json['sids'][sid]['name']
-
-            if ADDON.getSetting('hide.drm.channels') == 'true' and json['sids'][sid]['DRM_live'] == '1':
+            if ADDON.getSetting('hide.drm.channels') == 'true' and 'DRM_live' in sid and sid['DRM_live'] == '1':
                 continue
 
             item = xbmcgui.ListItem(name, iconImage=ICON, thumbnailImage=ICON)
             item.setProperty('IsPlayable', 'true')
             item.setProperty('Fanart_Image', FANART)
-            url = PATH + '?channel=' + sid
+            url = PATH + '?channel=' + str(sid['channel_id'])
             xbmcplugin.addDirectoryItem(HANDLE, url, item)
 
         xbmcplugin.endOfDirectory(HANDLE, True)
@@ -124,16 +112,11 @@ class StofaWebTv(object):
         except KeyError:
             pass
 
-        url = json['streams']['stream']
-
-        # XBMC doesn't support m3u8 stream selection yet, so let's play the best quality one.
-        u = urllib2.urlopen(url)
-        m3u8 = u.read()
+        u = urllib2.urlopen(json['streams']['stream'])
+        u.read()
         u.close()
-
-        stream = m3u8.splitlines()[-1]
-        idx = url.rfind('/') + 1
-        url = url[0:idx] + stream
+        # Get the location of the HTTP redirect and pass that to XBMC
+        url = u.geturl()
 
         item = xbmcgui.ListItem(path = url)
         xbmcplugin.setResolvedUrl(HANDLE, True, item)
@@ -202,7 +185,5 @@ if __name__ == '__main__':
         else:
             stv.listTVChannels()
 
-    except LoginFailedException:
-        stv.loginFailed()
     except Exception:
         buggalo.onExceptionRaised()

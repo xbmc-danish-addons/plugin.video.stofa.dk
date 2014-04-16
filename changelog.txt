@@ -1,3 +1,6 @@
+[B]Version 1.0.4 - 2014-04-16[/B]
+- Fixed listing of channels and playback of Stofa Kanalen
+
 [B]Version 1.0.3 - 2013-05-12[/B]
 - Updated addon to match JSON changes on site
 - Added setting to hide DRM protected channels
